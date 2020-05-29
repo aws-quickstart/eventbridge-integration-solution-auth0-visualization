@@ -1,0 +1,151 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  eventbridge-integration-solution-auth0-visualization
+
+  ()
+# More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
+Globals:
+  Function:
+    Timeout: 30
+
+Metadata:
+  AWS::ServerlessRepo::Application:
+    Name: Amazon-EventBridge-Integration-Solution-AWS-Auth0
+    Description: This application demonstrates an integration with Auth0 for Amazon EventBridge SaaS Partner Integrations
+    Author: AWS Quick Start
+    LicenseUrl: LICENSE
+    ReadmeUrl: README.md
+    Labels: ['amazon', 'eventbridge', 'integration', 'solution', 'aws', 'lambda', 'auth0', 's3']
+    HomePageUrl: https://aws.amazon.com/quickstart/eventbridge/auth0-visualization
+    SemanticVersion: 0.1.4
+    SourceCodeUrl: https://github.com/aws-quickstart/eventbridge-integration-solution-auth0-visualization
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Amazon EventBridge Integration Solution
+      Parameters:
+      - EventSourceName
+    - Label:
+        default: Amazon S3
+      Parameters:
+      - BucketName
+    ParameterLabels:
+      EventSourceName:
+        default: Event Source Name
+      BucketName:
+        default: Bucket Name
+
+Parameters:
+  EventSourceName:
+    Type: String
+    AllowedPattern : aws\.partner\/auth0\.com.+?\/auth0.logs
+    MinLength: 18
+    MaxLength: 256
+    Description: Name of the Auth0 Partner Event Source to associate with an Event Bus. For example, aws.partner/auth0.com/slug-uuid/auth0.logs
+  BucketName:
+    Type: String
+    Default: ''
+    AllowedPattern: '[a-zA-Z0-9.-]*'
+    MaxLength: 63
+    Description: Name of the Amazon S3 Bucket to create. Leave blank for an automatically generated name.
+
+Conditions:
+  AutoGenerateBucketName:
+    !Equals [ !Ref BucketName, '' ]
+
+Resources:
+
+  EventBridgeEventBus:
+    Type: AWS::Events::EventBus
+    Properties:
+      EventSourceName: !Ref EventSourceName
+      Name: !Ref EventSourceName
+
+  S3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      AccessControl: Private
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+        - ServerSideEncryptionByDefault:
+            SSEAlgorithm: AES256
+      BucketName:
+        !If [ AutoGenerateBucketName, !Ref 'AWS::NoValue', !Ref BucketName ]
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  EventBridgeFunction:
+    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+    Properties:
+      CodeUri: src/
+      Handler: saveAuth0EventToS3.handler
+      Runtime: nodejs12.x
+      MemorySize: 128
+      Environment:
+        Variables:
+          AuthLogBucket: !Ref S3Bucket
+      Policies:
+      - S3CrudPolicy:
+          BucketName: !Ref S3Bucket
+      Events:
+        SuccessfullSignIn:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              account:
+              - !Ref AWS::AccountId
+              detail:
+                data:
+                  type:
+                  - s
+            EventBusName: !Ref EventBridgeEventBus
+        SuccessfullSignUp:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              account:
+              - !Ref AWS::AccountId
+              detail:
+                data:
+                  type:
+                  - ss
+            EventBusName: !Ref EventBridgeEventBus
+        SuccessfullSignOutSuccess:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              account:
+              - !Ref AWS::AccountId
+              detail:
+                data:
+                  type:
+                  - slo
+            EventBusName: !Ref EventBridgeEventBus
+        SignInFail:
+          Type: EventBridgeRule
+          Properties:
+            Pattern:
+              account:
+              - !Ref AWS::AccountId
+              detail:
+                data:
+                  type:
+                  - fp
+                  - f
+                  - fu
+            EventBusName: !Ref EventBridgeEventBus
+
+Outputs:  
+  EventBridgeEventBus:
+    Description: "Event Bus Arn"
+    Value: !GetAtt EventBridgeEventBus.Arn
+  EventBridgeFunction:
+    Description: "Lambda Function Arn"
+    Value: !GetAtt EventBridgeFunction.Arn
+  S3Bucket:
+    Description: "S3 Bucket ARN"
+    Value: !GetAtt S3Bucket.Arn
