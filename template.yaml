@@ -3,7 +3,7 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   eventbridge-integration-solution-auth0-visualization
 
-  ()
+  (qs-1qpmal5d5)
 # More info about Globals: https://github.com/awslabs/serverless-application-model/blob/master/docs/globals.rst
 Globals:
   Function:
@@ -11,13 +11,13 @@ Globals:
 
 Metadata:
   AWS::ServerlessRepo::Application:
-    Name: Amazon-EventBridge-Integration-Solution-AWS-Auth0
+    Name: Amazon-EventBridge-Integration-Solution-Auth0-Visualization
     Description: This application demonstrates an integration with Auth0 for Amazon EventBridge SaaS Partner Integrations
     Author: AWS Quick Start
     LicenseUrl: LICENSE
     ReadmeUrl: README.md
     Labels: ['amazon', 'eventbridge', 'integration', 'solution', 'aws', 'lambda', 'auth0', 's3']
-    HomePageUrl: https://aws.amazon.com/quickstart/eventbridge/auth0-visualization
+    HomePageUrl: https://github.com/aws-quickstart/eventbridge-integration-solution-auth0-visualization
     SemanticVersion: 0.1.4
     SourceCodeUrl: https://github.com/aws-quickstart/eventbridge-integration-solution-auth0-visualization
   AWS::CloudFormation::Interface:
@@ -39,7 +39,7 @@ Metadata:
 Parameters:
   EventSourceName:
     Type: String
-    AllowedPattern : aws\.partner\/auth0\.com.+?\/auth0.logs
+    AllowedPattern: aws\.partner(/[\.\-_A-Za-z0-9]+){2,}
     MinLength: 18
     MaxLength: 256
     Description: Name of the Auth0 Partner Event Source to associate with an Event Bus. For example, aws.partner/auth0.com/slug-uuid/auth0.logs
@@ -55,7 +55,6 @@ Conditions:
     !Equals [ !Ref BucketName, '' ]
 
 Resources:
-
   EventBridgeEventBus:
     Type: AWS::Events::EventBus
     Properties:
@@ -81,18 +80,18 @@ Resources:
   EventBridgeFunction:
     Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
     Properties:
-      CodeUri: src/
-      Handler: saveAuth0EventToS3.handler
+      CodeUri: src/saveAuth0EventToS3
+      Handler: app.handler
       Runtime: nodejs12.x
       MemorySize: 128
       Environment:
         Variables:
           AuthLogBucket: !Ref S3Bucket
       Policies:
-      - S3CrudPolicy:
+      - S3WritePolicy:
           BucketName: !Ref S3Bucket
       Events:
-        SuccessfullSignIn:
+        SuccessfulSignIn:
           Type: EventBridgeRule
           Properties:
             Pattern:
@@ -103,7 +102,7 @@ Resources:
                   type:
                   - s
             EventBusName: !Ref EventBridgeEventBus
-        SuccessfullSignUp:
+        SuccessfulSignUp:
           Type: EventBridgeRule
           Properties:
             Pattern:
@@ -114,7 +113,7 @@ Resources:
                   type:
                   - ss
             EventBusName: !Ref EventBridgeEventBus
-        SuccessfullSignOutSuccess:
+        SuccessfulSignOutSuccess:
           Type: EventBridgeRule
           Properties:
             Pattern:
@@ -139,13 +138,30 @@ Resources:
                   - fu
             EventBusName: !Ref EventBridgeEventBus
 
-Outputs:  
+Outputs:
+  # Find out more about other implicit resources you can reference within SAM
+  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#eventbridgerule
   EventBridgeEventBus:
     Description: "Event Bus Arn"
     Value: !GetAtt EventBridgeEventBus.Arn
+  SuccessfulSignInRule:
+    Description: "SuccessfulSignIn Rule ARN"
+    Value: !GetAtt EventBridgeFunctionSuccessfulSignIn.Arn
+  SuccessfulSignUpRule:
+    Description: "SuccessfulSignUp Rule ARN"
+    Value: !GetAtt EventBridgeFunctionSuccessfulSignUp.Arn
+  SuccessfulSignOutSuccessRule:
+    Description: "SuccessfulSignOutSucces Rule ARN"
+    Value: !GetAtt EventBridgeFunctionSuccessfulSignOutSucces.Arn
+  SignInFailRule:
+    Description: "SignInFail Rule ARN"
+    Value: !GetAtt EventBridgeFunctionSignInFail.Arn
   EventBridgeFunction:
     Description: "Lambda Function Arn"
     Value: !GetAtt EventBridgeFunction.Arn
+  EventBridgeFunctionIamRole:
+    Description: "Implicit IAM Role created for EventBridge function"
+    Value: !GetAtt EventBridgeFunctionRole.Arn
   S3Bucket:
     Description: "S3 Bucket ARN"
     Value: !GetAtt S3Bucket.Arn
