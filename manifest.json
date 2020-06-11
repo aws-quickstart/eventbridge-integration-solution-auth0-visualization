@@ -1,0 +1,14 @@
+{
+  "fileLocations": [
+    {
+      "URIPrefixes": [
+        "s3://{your-s3-bucket-name}",
+      ]
+    }
+  ],
+  "globalUploadSettings": {
+    "format": "JSON",
+    "delimiter": ",",
+    "textqualifier": "'"
+  }
+}

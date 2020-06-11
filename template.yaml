@@ -30,11 +30,17 @@ Metadata:
         default: Amazon S3
       Parameters:
       - BucketName
+    - Label:
+        default: Amazon Kinesis Data Firehose
+      Parameters:
+      - DeliveryStreamName
     ParameterLabels:
       EventSourceName:
         default: Event Source Name
       BucketName:
         default: Bucket Name
+      DeliveryStreamName:
+        default: Delivery Stream Name
 
 Parameters:
   EventSourceName:
@@ -49,6 +55,12 @@ Parameters:
     AllowedPattern: '[a-zA-Z0-9.-]*'
     MaxLength: 63
     Description: Name of the Amazon S3 Bucket to create. Leave blank for an automatically generated name.
+  DeliveryStreamName:
+    Type: String
+    AllowedPattern: '[a-zA-Z0-9_.-]+'
+    MinLength: 1
+    MaxLength: 64
+    Description: Name of the Amazon Kinesis Data Firehose Delivery Stream to create
 
 Conditions:
   AutoGenerateBucketName:
@@ -77,66 +89,140 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
-  EventBridgeFunction:
-    Type: AWS::Serverless::Function # More info about Function Resource: https://github.com/awslabs/serverless-application-model/blob/master/versions/2016-10-31.md#awsserverlessfunction
+  EventBridgeToInvokeKinesisRole:
+    Type: AWS::IAM::Role
     Properties:
-      CodeUri: src/saveAuth0EventToS3
-      Handler: app.handler
-      Runtime: nodejs12.x
-      MemorySize: 128
-      Environment:
-        Variables:
-          AuthLogBucket: !Ref S3Bucket
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - events.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      Path: /
       Policies:
-      - S3WritePolicy:
-          BucketName: !Ref S3Bucket
-      Events:
-        SuccessfulSignIn:
-          Type: EventBridgeRule
-          Properties:
-            Pattern:
-              account:
-              - !Ref AWS::AccountId
-              detail:
-                data:
-                  type:
-                  - s
-            EventBusName: !Ref EventBridgeEventBus
-        SuccessfulSignUp:
-          Type: EventBridgeRule
-          Properties:
-            Pattern:
-              account:
-              - !Ref AWS::AccountId
-              detail:
-                data:
-                  type:
-                  - ss
-            EventBusName: !Ref EventBridgeEventBus
-        SuccessfulSignOutSuccess:
-          Type: EventBridgeRule
-          Properties:
-            Pattern:
-              account:
-              - !Ref AWS::AccountId
-              detail:
-                data:
-                  type:
-                  - slo
-            EventBusName: !Ref EventBridgeEventBus
-        SignInFail:
-          Type: EventBridgeRule
-          Properties:
-            Pattern:
-              account:
-              - !Ref AWS::AccountId
-              detail:
-                data:
-                  type:
-                  - fp
-                  - f
-                  - fu
-            EventBusName: !Ref EventBridgeEventBus
+        - PolicyName: eventbridge-to-kinesis-firehose-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - firehose:PutRecord
+                Resource:
+                  - !GetAtt DeliveryStream.Arn
+
+  KinesisDataFirehoseRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - firehose.amazonaws.com
+            Action:
+              - sts:AssumeRole
+            Condition:
+              StringEquals:
+                sts:ExternalId: !Ref AWS::AccountId
+      Path: /
+      Policies:
+        - PolicyName: kinesis-firehose-policy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:AbortMultipartUpload
+                  - s3:GetBucketLocation
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:ListBucketMultipartUploads
+                  - s3:PutObject
+                Resource:
+                  - !Sub ${S3Bucket.Arn}*
+
+  DeliveryStream:
+    Type: AWS::KinesisFirehose::DeliveryStream
+    Properties:
+      DeliveryStreamName: !Ref DeliveryStreamName
+      DeliveryStreamType: DirectPut
+      S3DestinationConfiguration:
+        BucketARN: !GetAtt S3Bucket.Arn
+        RoleARN: !GetAtt KinesisDataFirehoseRole.Arn
+
+
+  SuccessfullSignIn:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Auth0 User Successfully signed in"
+      EventBusName: !Ref EventBridgeEventBus
+      EventPattern:
+        account:
+          - !Sub '${AWS::AccountId}'
+        detail:
+          data:
+            type:
+              - s
+      Targets:
+        - Arn: !GetAtt DeliveryStream.Arn
+          Id: "SignInSuccessV1"
+          RoleArn: !GetAtt EventBridgeToInvokeKinesisRole.Arn
+
+  SuccessfullSignUp:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Auth0 User Successfully signed up"
+      EventBusName: !Ref EventBridgeEventBus
+      EventPattern:
+        account:
+          - !Sub '${AWS::AccountId}'
+        detail:
+          data:
+            type:
+              - ss
+      Targets:
+        - Arn: !GetAtt DeliveryStream.Arn
+          Id: "SignUpSuccessV1"
+          RoleArn: !GetAtt EventBridgeToInvokeKinesisRole.Arn
+  SuccessfullSignOutSuccess:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Auth0 User Successfully signed out"
+      EventBusName: !Ref EventBridgeEventBus
+      EventPattern:
+        account:
+          - !Sub '${AWS::AccountId}'
+        detail:
+          data:
+            type:
+              - slo
+      Targets:
+        - Arn: !GetAtt DeliveryStream.Arn
+          Id: "SignOutSuccessV1"
+          RoleArn: !GetAtt EventBridgeToInvokeKinesisRole.Arn
+  SignInFail:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: "Auth0 User Signin failed"
+      EventBusName: !Ref EventBridgeEventBus
+      EventPattern:
+        account:
+          - !Sub '${AWS::AccountId}'
+        detail:
+          data:
+            type:
+              - fp
+              - f
+              - fu
+      Targets:
+        - Arn: !GetAtt DeliveryStream.Arn
+          Id: "SignInFailV1"
+          RoleArn: !GetAtt EventBridgeToInvokeKinesisRole.Arn
+
 
 Outputs:
   # Find out more about other implicit resources you can reference within SAM
@@ -144,24 +230,27 @@ Outputs:
   EventBridgeEventBus:
     Description: "Event Bus Arn"
     Value: !GetAtt EventBridgeEventBus.Arn
+  DeliveryStream:
+    Description: "DeliveryStream Arn"
+    Value: !GetAtt DeliveryStream.Arn
   SuccessfulSignInRule:
     Description: "SuccessfulSignIn Rule ARN"
-    Value: !GetAtt EventBridgeFunctionSuccessfulSignIn.Arn
+    Value: !GetAtt SuccessfullSignIn.Arn
   SuccessfulSignUpRule:
     Description: "SuccessfulSignUp Rule ARN"
-    Value: !GetAtt EventBridgeFunctionSuccessfulSignUp.Arn
+    Value: !GetAtt SuccessfullSignUp.Arn
   SuccessfulSignOutSuccessRule:
     Description: "SuccessfulSignOutSucces Rule ARN"
-    Value: !GetAtt EventBridgeFunctionSuccessfulSignOutSucces.Arn
+    Value: !GetAtt SuccessfullSignOutSuccess.Arn
   SignInFailRule:
     Description: "SignInFail Rule ARN"
-    Value: !GetAtt EventBridgeFunctionSignInFail.Arn
-  EventBridgeFunction:
-    Description: "Lambda Function Arn"
-    Value: !GetAtt EventBridgeFunction.Arn
+    Value: !GetAtt SignInFail.Arn
   EventBridgeFunctionIamRole:
     Description: "Implicit IAM Role created for EventBridge function"
-    Value: !GetAtt EventBridgeFunctionRole.Arn
+    Value: !GetAtt EventBridgeToInvokeKinesisRole.Arn
   S3Bucket:
     Description: "S3 Bucket ARN"
     Value: !GetAtt S3Bucket.Arn
+  KinesisDataFirehoseRole:
+    Description: "Kinesis Data Firehose Delivery Stream IAM Role"
+    Value: !GetAtt KinesisDataFirehoseRole.Arn
