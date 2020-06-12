@@ -1,4 +1,4 @@
-AWSTemplateFormatVersion: '2010-09-09'
+AWSTemplateFormatVersion: 2010-09-09
 Transform: AWS::Serverless-2016-10-31
 Description: >
   eventbridge-integration-solution-auth0-visualization
@@ -89,29 +89,29 @@ Resources:
         IgnorePublicAcls: true
         RestrictPublicBuckets: true
 
-  EventBridgeToInvokeKinesisRole:
+  EventBridgeKinesisDataFirehoseTargetRole:
     Type: AWS::IAM::Role
     Properties:
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - events.amazonaws.com
-            Action:
-              - sts:AssumeRole
+        - Effect: Allow
+          Principal:
+            Service:
+            - events.amazonaws.com
+          Action:
+          - sts:AssumeRole
       Path: /
       Policies:
-        - PolicyName: eventbridge-to-kinesis-firehose-policy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - firehose:PutRecord
-                Resource:
-                  - !GetAtt DeliveryStream.Arn
+      - PolicyName: eventbridge-to-kinesis-firehose-policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - firehose:PutRecord
+            Resource:
+            - !GetAtt KinesisDataFirehoseDeliveryStream.Arn
 
   KinesisDataFirehoseRole:
     Type: AWS::IAM::Role
@@ -119,33 +119,34 @@ Resources:
       AssumeRolePolicyDocument:
         Version: 2012-10-17
         Statement:
-          - Effect: Allow
-            Principal:
-              Service:
-                - firehose.amazonaws.com
-            Action:
-              - sts:AssumeRole
-            Condition:
-              StringEquals:
-                sts:ExternalId: !Ref AWS::AccountId
+        - Effect: Allow
+          Principal:
+            Service:
+            - firehose.amazonaws.com
+          Action:
+          - sts:AssumeRole
+          Condition:
+            StringEquals:
+              sts:ExternalId: !Ref AWS::AccountId
       Path: /
       Policies:
-        - PolicyName: kinesis-firehose-policy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:AbortMultipartUpload
-                  - s3:GetBucketLocation
-                  - s3:GetObject
-                  - s3:ListBucket
-                  - s3:ListBucketMultipartUploads
-                  - s3:PutObject
-                Resource:
-                  - !Sub ${S3Bucket.Arn}*
+      - PolicyName: kinesis-firehose-policy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Effect: Allow
+            Action:
+            - s3:AbortMultipartUpload
+            - s3:GetBucketLocation
+            - s3:GetObject
+            - s3:ListBucket
+            - s3:ListBucketMultipartUploads
+            - s3:PutObject
+            Resource:
+            - !Sub ${S3Bucket.Arn}
+            - !Sub ${S3Bucket.Arn}/*
 
-  DeliveryStream:
+  KinesisDataFirehoseDeliveryStream:
     Type: AWS::KinesisFirehose::DeliveryStream
     Properties:
       DeliveryStreamName: !Ref DeliveryStreamName
@@ -154,103 +155,102 @@ Resources:
         BucketARN: !GetAtt S3Bucket.Arn
         RoleARN: !GetAtt KinesisDataFirehoseRole.Arn
 
+  SuccessfulSignInRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Auth0 User Successfully signed in
+      EventBusName: !Ref EventBridgeEventBus
+      EventPattern:
+        account:
+        - !Sub ${AWS::AccountId}
+        detail:
+          data:
+            type:
+            - s
+      Targets:
+      - Arn: !GetAtt KinesisDataFirehoseDeliveryStream.Arn
+        Id: SignInSuccessV1
+        RoleArn: !GetAtt EventBridgeKinesisDataFirehoseTargetRole.Arn
 
-  SuccessfullSignIn:
+  SuccessfullSignUpRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Auth0 User Successfully signed in"
+      Description: Auth0 User Successfully signed up
       EventBusName: !Ref EventBridgeEventBus
       EventPattern:
         account:
-          - !Sub '${AWS::AccountId}'
+        - !Sub ${AWS::AccountId}
         detail:
           data:
             type:
-              - s
+            - ss
       Targets:
-        - Arn: !GetAtt DeliveryStream.Arn
-          Id: "SignInSuccessV1"
-          RoleArn: !GetAtt EventBridgeToInvokeKinesisRole.Arn
+      - Arn: !GetAtt KinesisDataFirehoseDeliveryStream.Arn
+        Id: SignUpSuccessV1
+        RoleArn: !GetAtt EventBridgeKinesisDataFirehoseTargetRole.Arn
 
-  SuccessfullSignUp:
+  SuccessfulSignOutRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Auth0 User Successfully signed up"
+      Description: Auth0 User Successfully signed out
       EventBusName: !Ref EventBridgeEventBus
       EventPattern:
         account:
-          - !Sub '${AWS::AccountId}'
+        - !Sub ${AWS::AccountId}
         detail:
           data:
             type:
-              - ss
+            - slo
       Targets:
-        - Arn: !GetAtt DeliveryStream.Arn
-          Id: "SignUpSuccessV1"
-          RoleArn: !GetAtt EventBridgeToInvokeKinesisRole.Arn
-  SuccessfullSignOutSuccess:
+      - Arn: !GetAtt KinesisDataFirehoseDeliveryStream.Arn
+        Id: SignOutSuccessV1
+        RoleArn: !GetAtt EventBridgeKinesisDataFirehoseTargetRole.Arn
+
+  FailedSignInRule:
     Type: AWS::Events::Rule
     Properties:
-      Description: "Auth0 User Successfully signed out"
+      Description: Auth0 User Failed sign in
       EventBusName: !Ref EventBridgeEventBus
       EventPattern:
         account:
-          - !Sub '${AWS::AccountId}'
+        - !Sub ${AWS::AccountId}
         detail:
           data:
             type:
-              - slo
+            - fp
+            - f
+            - fu
       Targets:
-        - Arn: !GetAtt DeliveryStream.Arn
-          Id: "SignOutSuccessV1"
-          RoleArn: !GetAtt EventBridgeToInvokeKinesisRole.Arn
-  SignInFail:
-    Type: AWS::Events::Rule
-    Properties:
-      Description: "Auth0 User Signin failed"
-      EventBusName: !Ref EventBridgeEventBus
-      EventPattern:
-        account:
-          - !Sub '${AWS::AccountId}'
-        detail:
-          data:
-            type:
-              - fp
-              - f
-              - fu
-      Targets:
-        - Arn: !GetAtt DeliveryStream.Arn
-          Id: "SignInFailV1"
-          RoleArn: !GetAtt EventBridgeToInvokeKinesisRole.Arn
+      - Arn: !GetAtt KinesisDataFirehoseDeliveryStream.Arn
+        Id: SignInFailV1
+        RoleArn: !GetAtt EventBridgeKinesisDataFirehoseTargetRole.Arn
 
 
 Outputs:
-  # Find out more about other implicit resources you can reference within SAM
-  # https://github.com/awslabs/serverless-application-model/blob/master/docs/internals/generated_resources.rst#eventbridgerule
   EventBridgeEventBus:
-    Description: "Event Bus Arn"
+    Description: Event Bus Arn
     Value: !GetAtt EventBridgeEventBus.Arn
-  DeliveryStream:
-    Description: "DeliveryStream Arn"
-    Value: !GetAtt DeliveryStream.Arn
+  EventBridgeKinesisDataFirehoseTargetRole:
+    Description: EventBridge Kinesis Data Firehose Target IAM Role
+    Value: !GetAtt EventBridgeKinesisDataFirehoseTargetRole.Arn
   SuccessfulSignInRule:
-    Description: "SuccessfulSignIn Rule ARN"
-    Value: !GetAtt SuccessfullSignIn.Arn
+    Description: SuccessfulSignIn Rule ARN
+    Value: !GetAtt SuccessfulSignInRule.Arn
   SuccessfulSignUpRule:
-    Description: "SuccessfulSignUp Rule ARN"
-    Value: !GetAtt SuccessfullSignUp.Arn
-  SuccessfulSignOutSuccessRule:
-    Description: "SuccessfulSignOutSucces Rule ARN"
-    Value: !GetAtt SuccessfullSignOutSuccess.Arn
-  SignInFailRule:
-    Description: "SignInFail Rule ARN"
-    Value: !GetAtt SignInFail.Arn
-  EventBridgeFunctionIamRole:
-    Description: "Implicit IAM Role created for EventBridge function"
-    Value: !GetAtt EventBridgeToInvokeKinesisRole.Arn
-  S3Bucket:
-    Description: "S3 Bucket ARN"
-    Value: !GetAtt S3Bucket.Arn
+    Description: SuccessfulSignUp Rule ARN
+    Value: !GetAtt SuccessfullSignUpRule.Arn
+  SuccessfulSignOutRule:
+    Description: SuccessfulSignOut Rule ARN
+    Value: !GetAtt SuccessfulSignOutRule.Arn
+  FailedSignInRule:
+    Description: FailedSignIn Rule ARN
+    Value: !GetAtt FailedSignInRule.Arn
+  KinesisDataFirehoseDeliveryStream:
+    Description: KinesisDataFirehoseDeliveryStream Arn
+    Value: !GetAtt KinesisDataFirehoseDeliveryStream.Arn
   KinesisDataFirehoseRole:
-    Description: "Kinesis Data Firehose Delivery Stream IAM Role"
+    Description: Kinesis Data Firehose Delivery Stream IAM Role
     Value: !GetAtt KinesisDataFirehoseRole.Arn
+  S3Bucket:
+    Description: S3 Bucket ARN
+    Value: !GetAtt S3Bucket.Arn

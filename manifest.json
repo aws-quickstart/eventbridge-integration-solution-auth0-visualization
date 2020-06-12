@@ -2,7 +2,7 @@
   "fileLocations": [
     {
       "URIPrefixes": [
-        "s3://{your-s3-bucket-name}",
+        "s3://{your-s3-bucket-name}"
       ]
     }
   ],

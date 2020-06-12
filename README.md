@@ -1,10 +1,15 @@
 # eventbridge-integration-solution-auth0-visualization
 ## Amazon EventBridge Integration Solution for Auth0 Visualization
 
-This Quick Start demonstrates how to capture user events and monitor user behavior by using the Amazon EventBridge partner integration with Auth0. This enables you to gain insights to help deliver a more customized application experience for your users.
+This Quick Start demonstrates how to capture user events and monitor user behavior by using the Amazon EventBridge partner integration with Auth0. This enables you to gain insights to help deliver a more customized application experience for your users. You can also visualize the events stored in the Amazon S3 bucket by setting it up as a data source for Amazon QuickSight or a visualization tool of your choosing.
 
-![Quick Start architecture for EventBridge Integration Solution for Auth0 Visualization](https://github.com/aws-quickstart/eventbridge-integration-solution-auth0-visualization/raw/master/images/auth0-visualization-arch.png)
+![Quick Start architecture for EventBridge Integration Solution for Auth0 Visualization](https://github.com/aws-quickstart/eventbridge-integration-solution-auth0-visualization/raw/master/images/arch-auth0-visualization.png)
 
+This solution includes event bus rules for the following events:
+* Successful user sign up
+* Successful user sign in
+* Successful user sign out
+* Failed user sign in
 
 To post feedback, submit feature ideas, or report bugs, use the **Issues** section of [this GitHub repo](https://github.com/aws-quickstart/eventbridge-integration-solution-auth0-visualization).
 
@@ -28,17 +33,17 @@ Before building your first visual you must:
 
 Ensure that QuickSight has permission to access your S3 bucket:
 
-1.	Choose the user profile icon in the top right of the menu bar, then choose Manage QuickSight.
-2.	Choose Security & permissions, then choose Add or remove.
-3.	Choose the checkbox next to Amazon S3, then select the application bucket, the name contains AuthZeroToEventBridgeActivityLogs. Choose Finish. 
+1. Choose the user profile icon in the top right of the menu bar, then choose Manage QuickSight.
+2. Choose Security & permissions, then choose Add or remove.
+3. Choose the checkbox next to Amazon S3, then select the application bucket, the name contains AuthZeroToEventBridgeActivityLogs. Choose Finish. 
 
 Create a new Data source. 
 
-1.	Go to the QuickSight console and choose Manage data
-2.	Choose New data set, then choose S3
-3.	Enter auth0UserLogs in the Data source name field, then choose the Upload radio button.
-4.	Choose the Folder Icon in the Upload a JSON manifest file field, browse to the example manifest.json file you edited earlier and choose Open, then choose Connect.
-5.	Once the dataset has been created, choose Visualize.
+1. Go to the QuickSight console and choose Manage data
+2. Choose New data set, then choose S3
+3. Enter auth0UserLogs in the Data source name field, then choose the Upload radio button.
+4. Choose the Folder Icon in the Upload a JSON manifest file field, browse to the example manifest.json file you edited earlier and choose Open, then choose Connect.
+5. Once the dataset has been created, choose Visualize.
 
 ## Example QuickSight Visual
 To build a visual that shows the different types of log-ins, drag the detail.data.type field onto the visual. Then choose the Pie chart icon from the Visual types section.
