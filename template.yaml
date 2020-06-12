@@ -172,7 +172,7 @@ Resources:
         Id: SignInSuccessV1
         RoleArn: !GetAtt EventBridgeKinesisDataFirehoseTargetRole.Arn
 
-  SuccessfullSignUpRule:
+  SuccessfulSignUpRule:
     Type: AWS::Events::Rule
     Properties:
       Description: Auth0 User Successfully signed up
@@ -238,7 +238,7 @@ Outputs:
     Value: !GetAtt SuccessfulSignInRule.Arn
   SuccessfulSignUpRule:
     Description: SuccessfulSignUp Rule ARN
-    Value: !GetAtt SuccessfullSignUpRule.Arn
+    Value: !GetAtt SuccessfulSignUpRule.Arn
   SuccessfulSignOutRule:
     Description: SuccessfulSignOut Rule ARN
     Value: !GetAtt SuccessfulSignOutRule.Arn
