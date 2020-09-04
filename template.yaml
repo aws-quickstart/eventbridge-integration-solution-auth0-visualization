@@ -17,8 +17,8 @@ Metadata:
     LicenseUrl: LICENSE
     ReadmeUrl: README.md
     Labels: ['amazon', 'eventbridge', 'integration', 'solution', 'aws', 'lambda', 'auth0', 's3']
-    HomePageUrl: https://github.com/aws-quickstart/eventbridge-integration-solution-auth0-visualization
-    SemanticVersion: 0.1.4
+    HomePageUrl: https://aws.amazon.com/quickstart/eventbridge/auth0-visualization/
+    SemanticVersion: 0.1.5
     SourceCodeUrl: https://github.com/aws-quickstart/eventbridge-integration-solution-auth0-visualization
   AWS::CloudFormation::Interface:
     ParameterGroups:
